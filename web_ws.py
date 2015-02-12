@@ -8,6 +8,7 @@ import os
 import json
 import re
 import magic
+import pickle
 from datetime import datetime
 #from urllib.parse import quote
 from cgi import escape as quote
@@ -62,6 +63,7 @@ def try_url(request, url):
     except Exception as err:
         print( err )
         return url, b'unknown'
+
 
 @asyncio.coroutine
 def parse_message(request, msg):
@@ -163,6 +165,19 @@ class History:
     def slice(self, cnt, idx=0):
         return self.__hist[idx : idx+cnt]
 
+    def dump(self, fpath):
+        dump = pickle.dumps(self.__hist)
+        open(fpath, 'bw').write(dump)
+        print('history saved in {} ...'.format(fpath))
+
+    def load(self, fpath):
+        if not os.path.exists(fpath):
+            print('dump file {} does not found ...'.format(fpath))
+            return
+        dump = open(fpath, 'rb').read()
+        self.__hist = pickle.loads(dump)
+
+
 
 @asyncio.coroutine
 def init(loop):
@@ -170,11 +185,12 @@ def init(loop):
     app['sockets'] = []
     app['users'] = []
     app['history'] = History()
+    app['history'].load('history.dump')
     app.router.add_route('GET', '/', wshandler)
     app.router.add_route('GET', '/get_history/{cnt}/{idx}', get_history)
 
     handler = app.make_handler()
-    srv = yield from loop.create_server(handler, '192.168.1.54', 8080)
+    srv = yield from loop.create_server(handler, '0.0.0.0', 8080)
     print("Server started at http://127.0.0.1:8080")
     return app, srv, handler
 
@@ -184,6 +200,7 @@ def finish(app, srv, handler):
     for ws in app['sockets']:
         ws.close()
     app['sockets'].clear()
+    app['history'].dump('history.dump')
     yield from asyncio.sleep(0.1)
     srv.close()
     yield from handler.finish_connections()
@@ -195,4 +212,6 @@ app, srv, handler = loop.run_until_complete(init(loop))
 try:
     loop.run_forever()
 except KeyboardInterrupt:
+    loop.run_until_complete(finish(app, srv, handler))
+except Exception:
     loop.run_until_complete(finish(app, srv, handler))
