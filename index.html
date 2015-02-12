@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Media chat ;)</title>
+    <base target="_blank" />
+
+    <!-- Bootstrap -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+
+    <style type="text/css">
+        html {
+              position: relative;
+              min-height: 100%;
+        }
+        body {
+              /* Margin bottom by footer height */
+              margin-bottom: 60px;
+              height: 100%;
+        }
+        .login_form {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 50px;
+        }
+        .footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            /* Set the fixed height of the footer here */
+            height: 60px;
+            background-color: #f5f5f5;
+        }
+        .page-header {
+            margin: 0px;
+        }
+
+        .chat-wind {
+            height: 300px;
+            overflow: auto;
+        }
+        .youtube_video {
+            width: 450px;
+        }
+        .small_image {
+            margin-top: 2px;
+        }
+
+        .footer .container {
+            padding-top: 5px;
+            
+        }
+        #input_msg_text {
+            height: 50px;
+            width: 100%;
+        }
+        #img_modal .modal-dialog {
+            width: 900px;
+        }
+        #img_modal .modal-body {
+            text-align: center;
+        }
+        #img_modal .modal-body img {
+            display: inline;
+        }
+        h4 {
+            margin: 0px;
+        }
+        .chat-wind .fb_iframe_widget {
+            display: block;
+        }
+    </style>
+
+      <script language="javascript" type="text/javascript">
+        $(function() {
+          var conn = null;
+          var user = null;
+          var reconnecting = false;
+
+            function fix_chat_height() {
+                var h = $(window).height() - 200;
+                $('.chat-wind').height(h);
+            }
+
+          function log(msg) {
+            var control = $('.chat-wind');
+            //control.html(control.html() + '<div>'+msg+'</div>');
+            control.append('<div>'+msg+'</div>');
+            if (typeof FB != 'undefined') { FB.XFBML.parse(); }
+            control.prop({ scrollTop: $(".chat-wind").prop("scrollHeight") });
+          }
+          function system_log(msg, llevel) {
+              var s_msg = '<h4><small><span class="label label-'+llevel+'">' + msg + '</span></small></h4>'
+            //var s_msg = '<div class="alert alert-warning" role="alert">' + msg + '</div>';
+            log(s_msg);
+          }
+
+          function connect() {
+            disconnect();
+            var wsUri = (window.location.protocol=='https:'&&'wss://'||'ws://')+window.location.host;
+            conn = new WebSocket(wsUri);
+            conn.onopen = function() {
+              system_log('Connected.', 'success');
+              conn.send(user);
+              update_ui();
+              reconnecting = false;
+            };
+
+            conn.onmessage = function(e) {
+                var obj = jQuery.parseJSON( e.data );
+                add_message(obj);
+            };
+
+            conn.onclose = function() {
+              if (!reconnecting) {
+                system_log('Disconnected.', 'danger');
+
+              }
+              conn = null;
+              update_ui();
+
+              setTimeout(function() {
+                reconnecting = true;
+                connect();
+              }, 5000);
+            };
+          }
+          
+          function disconnect() {
+            if (conn != null) {
+              system_log('Disconnecting...', 'warning');
+              conn.close();
+              conn = null;
+              update_ui();
+            }
+          }
+          
+          function add_message(obj) {
+                var ll = 'info';
+                if (obj.user == 'SERVER') {
+                    system_log('*** ' + obj.message, 'warning');
+                    return;
+                }
+                if (obj.user == user) {
+                    ll = 'primary';
+                }
+                log('<span class="label label-default">['+obj.time+']</span>&nbsp;<span class="label label-'+ll+'">'+obj.user+'</span>' + ' ' + obj.message + '<br/>');
+          }
+
+          function update_ui() {
+            var msg = '';
+            if (conn == null) {
+              $('#input_msg_text').prop('disabled', true);
+              $('#connect').html('Connect');
+            } else {
+              $('#input_msg_text').prop('disabled', false);
+              console.log('connected (' + conn.protocol + ')');
+              $('#connect').html('Disconnect');
+            }
+          }
+
+          $('#connect_btn').click(function() {
+                user = $('#user_input').val();
+                if (user.length < 3) {
+                    alert('Your name is too short');
+                    return;
+                }
+                $('#username_span').html(user);
+                system_log('Connecting...', 'warning');
+                connect();
+              
+                $('#login_wind').hide();
+                $('#chat_main_wind').show();
+
+                update_ui();
+                return false;
+              });
+
+          $('#send_msg_btn').click(function() {
+            var text = $('#input_msg_text').val();
+            if (text.length == 0) {
+                return;
+            }
+            if (!conn) { return; }
+            conn.send(text);
+            $('#input_msg_text').val('').focus();
+            return false;
+          });
+
+          $('textarea#input_msg_text').keypress(function(e) {
+            if (e.keyCode === 13) {
+                if (e.shiftKey) {
+                    return true;
+                }
+              $('#send_msg_btn').click();
+              e.preventDefault();
+              return false;
+            }
+          });
+
+          function enter_user() {
+              $('#chat_main_wind').hide();
+              //$('#login_wind').();
+          }
+          $('#img_modal').on('hidden.bs.modal', function (e) {
+                $('#input_msg_text').focus();
+          });
+
+          function load_history() {
+              $.getJSON( "/get_history/100/0", function( data ) {
+                    for (var i=0; i<data.length; i++) {
+                        var obj = new Object();
+                        var val = data[i];
+                        console.log(val);
+                        obj.time = val[0];
+                        obj.user = val[1];
+                        obj.message = val[2];
+
+                        add_message(obj);
+                    }
+              });
+          }
+
+            function init_fb(d, s, id) {
+              var js, fjs = d.getElementsByTagName(s)[0];
+
+               if (d.getElementById(id)) return;
+               js = d.createElement(s); js.id = id;
+               js.src = "//connect.facebook.net/en_US/sdk.js#xfbml=1&version=v2.0";
+               fjs.parentNode.insertBefore(js, fjs);
+              }
+
+          function init_plugins() {
+            init_fb(document, 'script', 'facebook-jssdk');
+          }
+
+          init_plugins();
+          fix_chat_height();
+          load_history();
+          enter_user();
+        });
+
+          function show_image(o_url, url) {
+            $('#img_modal_url').prop('src', url);
+            $('#img_modal_orig_url').prop('href', o_url);
+            $('#img_modal').modal('show');
+          }
+    </script>
+  </head>
+  <body>
+    <div id="fb-root"></div>
+    <script>(function(d, s, id) {
+          var js, fjs = d.getElementsByTagName(s)[0];
+
+           if (d.getElementById(id)) return;
+           js = d.createElement(s); js.id = id;
+           js.src = "//connect.facebook.net/en_US/sdk.js#xfbml=1&version=v2.0";
+           fjs.parentNode.insertBefore(js, fjs);
+          }(document, 'script', 'facebook-jssdk'));</script>
+   
+    <div id="login_wind">
+        <div class="container">
+            <div class="login_form" ><h2>Please enter your name</h2>
+            <input type="text" class="form-control" id="user_input" required autofocus>
+            <label></label> <button class="btn btn-lg btn-primary btn-block" id="connect_btn">Connect</button></div>
+        </div>
+    </div>
+
+   <div id="chat_main_wind">
+    <!-- Begin page content -->
+    <div class="container">
+      <div class="page-header">
+          <h2>Media chat  <small>- I'm <b id="username_span"></b></small></h2>
+      </div>
+
+      <div class="well chat-wind">
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="container">
+          <div class="row">
+              <div class="col-md-8">
+                  <textarea id="input_msg_text"></textarea>
+              </div>
+
+              <div class="col-md-4 text-left">
+                  <button type="button" class="btn btn-primary" id="send_msg_btn">Send message</button>
+              </div>
+          </div>
+      </div>
+    </footer>
+    </div>
+
+
+    <div class="modal fade" id="img_modal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+              <h4><a id="img_modal_orig_url" >Original image link</a></h4>
+          </div>
+          <div class="modal-body">
+              <img class="img-responsive" align="middle" id="img_modal_url"/>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+  </body>
+</html>
